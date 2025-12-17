@@ -1,0 +1,13 @@
+{
+	"folders": [
+		{
+			"path": "../../../Planform/deTrans/移动端"
+		},
+		{
+			"path": "../.."
+		}
+	],
+	"settings": {
+		"git.ignoreLimitWarning": true
+	}
+}
