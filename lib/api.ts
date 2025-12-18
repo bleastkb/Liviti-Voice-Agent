@@ -43,31 +43,6 @@ export async function transcribeAudio(audioBlob: Blob): Promise<string> {
   }
 }
 
-// 全局 Audio 对象引用，用于停止正在播放的语音
-let currentAudio: HTMLAudioElement | null = null;
-
-/**
- * 停止当前正在播放的助手语音
- */
-export function stopAssistantVoice(): void {
-  if (typeof window === 'undefined') return;
-  
-  if (currentAudio) {
-    try {
-      currentAudio.pause();
-      currentAudio.currentTime = 0;
-      // 清理 URL 对象
-      if (currentAudio.src.startsWith('blob:')) {
-        URL.revokeObjectURL(currentAudio.src);
-      }
-      currentAudio = null;
-      console.log('[API] Stopped assistant voice playback');
-    } catch (error) {
-      console.error('[API] Failed to stop assistant voice:', error);
-    }
-  }
-}
-
 /**
  * 为助手回复生成语音并在前端播放
  * 调用 /api/tts 获取音频流，然后用 Audio 在浏览器中播放
@@ -76,9 +51,6 @@ export async function playAssistantVoice(text: string): Promise<void> {
   // 只在浏览器环境中执行
   if (typeof window === 'undefined') return;
   if (!text || !text.trim()) return;
-
-  // 停止之前正在播放的语音
-  stopAssistantVoice();
 
   try {
     const res = await fetch('/api/tts', {
@@ -99,36 +71,8 @@ export async function playAssistantVoice(text: string): Promise<void> {
     const url = URL.createObjectURL(blob);
 
     const audio = new Audio(url);
-    currentAudio = audio;
-    audio.playbackRate = 1.3; // speed up speech playback for quicker replies
-    if ('preservesPitch' in audio) {
-      // keep voice from sounding too distorted when speeding up
-      (audio as any).preservesPitch = true;
-    } else if ('mozPreservesPitch' in audio) {
-      (audio as any).mozPreservesPitch = true;
-    }
-    
-    // 播放完成后清理
-    audio.addEventListener('ended', () => {
-      URL.revokeObjectURL(url);
-      if (currentAudio === audio) {
-        currentAudio = null;
-      }
-    });
-
-    audio.addEventListener('error', () => {
-      URL.revokeObjectURL(url);
-      if (currentAudio === audio) {
-        currentAudio = null;
-      }
-    });
-
     audio.play().catch((err) => {
       console.error('[API] Failed to play assistant voice:', err);
-      URL.revokeObjectURL(url);
-      if (currentAudio === audio) {
-        currentAudio = null;
-      }
     });
   } catch (error) {
     console.error('[API] playAssistantVoice failed:', error);
@@ -141,12 +85,7 @@ export async function playAssistantVoice(text: string): Promise<void> {
  */
 export async function getAIResponse(
   userMessage: string,
-  conversationHistory: Array<{ role: 'user' | 'assistant'; content: string }>,
-  options?: {
-    sessionId?: string;
-    interactionType?: 'user_message' | 'micro_action_click';
-    metadata?: Record<string, any>;
-  }
+  conversationHistory: Array<{ role: 'user' | 'assistant'; content: string }>
 ): Promise<AIResponse> {
   try {
     const res = await fetch('/api/ai-response', {
@@ -154,13 +93,7 @@ export async function getAIResponse(
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({
-        userMessage,
-        conversationHistory,
-        sessionId: options?.sessionId,
-        interactionType: options?.interactionType || 'user_message',
-        metadata: options?.metadata,
-      }),
+      body: JSON.stringify({ userMessage, conversationHistory }),
     });
 
     if (!res.ok) {
@@ -185,7 +118,6 @@ export async function getAIResponse(
         },
       ],
       safetyLevel: 'safe',
-      references: [],
     };
 
     return fallback;
